@@ -1,0 +1,137 @@
+#include <EEPROM.h>
+#include "Arduino.h"
+#include "SevSeg.h"
+
+SevSeg Display;
+
+   int RUNBIT = 9;// for setting time and run time
+
+  byte setHour, setMinute;
+  int ShowTime, ShowTimer;
+  long lastTime;
+  #define presetHour A4
+  #define presetMinute A3
+  #define hourReg 0x00
+  #define minuteReg 0x01
+  #define powerDetect 2
+  #define relay A5
+
+
+
+void readEeprom()
+  {
+    setHour = EEPROM.read(hourReg);
+    setMinute = EEPROM.read(minuteReg);
+  }
+void writeEeprom()
+  {
+    
+      EEPROM.write(hourReg, setHour);
+      EEPROM.write(minuteReg, setMinute);
+  }
+
+void CheckPot() {
+  //Serial.println("Came to Check Pot");
+  
+    setHour = map(analogRead(presetHour), 10, 1010, 0, 12);
+    setMinute = map(analogRead(presetMinute), 10, 1010, 0, 59);
+  
+ ShowTime = setHour * 100 + setMinute;
+  Display.setNumber(ShowTime);
+  Display.refreshDisplay();
+
+}
+
+void END() {
+        digitalWrite(relay, LOW);
+        EEPROM.write(hourReg, 0x00);
+        EEPROM.write(minuteReg, 0x00);
+        
+  while (1) {
+    
+   Display.setChars(" off");
+    Display.refreshDisplay();
+    if (digitalRead(RUNBIT) == 0) {
+      
+      break;
+    }
+
+    
+  }
+}
+
+
+void TIMER() {
+ 
+  if((millis()-lastTime > 70000))
+    {
+      if(setMinute > 0)
+      {
+        setMinute--;
+        lastTime = millis();
+      }
+      else if(setHour > 0)
+      {
+        setHour--;
+        setMinute = 59;
+        lastTime = millis();
+      }
+    }
+
+  
+  ShowTimer = setHour * 100 + setMinute;
+   Display.setNumber(ShowTimer);
+  Display.refreshDisplay();
+}
+
+
+  void setup() {
+  pinMode(A0, INPUT);
+  pinMode(A1, INPUT);
+  pinMode(powerDetect, INPUT);
+  pinMode(RUNBIT, INPUT);
+  pinMode(relay, OUTPUT);
+ 
+ 
+  delay(3000);
+
+  
+   byte numDigits = 4;
+  byte digitPins[] = {13,12,11,10};
+  byte segmentPins[] = {5,4,8,3,1,7,6};
+  bool resistorsOnSegments = true;
+  bool updateWithDelaysIn = true;
+  byte hardwareConfig = COMMON_ANODE;
+  bool leadingZeros = false; // Use 'true' if you'd like to keep the leading zeros
+  Display.begin(hardwareConfig, numDigits, digitPins, segmentPins, resistorsOnSegments);
+  Display.setBrightness(3);  //100
+   readEeprom();
+   
+ attachInterrupt(digitalPinToInterrupt(2), writeEeprom, FALLING);
+}
+
+void loop() {
+    if (digitalRead(RUNBIT) == 0) {
+      digitalWrite(relay, LOW);
+     while (1) {
+      
+     CheckPot();
+       
+      if (digitalRead(RUNBIT) == 1) {
+  
+     break;
+  }
+  
+    }
+    }
+
+ 
+  if (digitalRead(RUNBIT) == 1) {
+    TIMER();
+    digitalWrite(relay, HIGH);
+    if (setHour == 0 && setMinute == 0) {
+      END();
+    }
+
+  }
+}
